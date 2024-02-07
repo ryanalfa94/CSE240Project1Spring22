@@ -8,10 +8,7 @@
  *
  */
 
-// I think i did the syntax error correctly 
-// and now i should be working on symantic errors 
-// check for errors !
-
+// Ryan Alfa
 
 
 #include <iostream>
@@ -20,15 +17,21 @@
 
 using namespace std;
 
-//unordered_map<string, int> tokenMap;
+vector<Token> tokens;
+string duplicateToken; 
 
-// this syntax error function needs to be 
-// modified to produce the appropriate message
+//This function prints a syntax error message and terminates the program.
 void Parser::syntax_error()
 {
-        cout << "SYNTAX ERROR\n";
-        exit(1);
-   
+    cout << "SNYTAX ERORR\n";
+    exit(1);
+}
+
+//This function prints a syntax error message related to expressions associated with a Token and terminates the program.
+void Parser::syntax_error_expr(string nameID)
+{
+    cout << nameID << " HAS A SYNTAX ERROR IN ITS EXPRESSION \n";
+    exit(1);
 }
 
 // this function gets a token and checks if it is
@@ -37,149 +40,123 @@ void Parser::syntax_error()
 // this function is particularly useful to match
 // terminals in a right hand side of a rule.
 // Written by Mohsen Zohrevandi
+
 Token Parser::expect(TokenType expected_type)
 {
-    Token t = lexer.GetToken();
-    if (t.token_type != expected_type)
-    // i changed this from syntax_error to syntaxError
-        syntax_error();
-    return t;
+     Token t = lexer.GetToken();
+     if (t.token_type != expected_type)
+         syntax_error();
+     return t;
 }
 
-void Parser::parse_expr( )
+//This function retrieves a token from the lexer and checks if it matches the expected token type.
+Token Parser::expect_expr(TokenType expected_type, string nameID)
 {
- // rule 
- // expr --> ChAR
- // expr --> underScore
- // expr --> (expr) | (expr)
- // expr --> (expr) . (expr)
- // expr --> (expr) *
- 
-    Token t = lexer.peek(1);
-
- if (t.token_type == CHAR) {
-    expect(CHAR);
-} else if (t.token_type == UNDERSCORE) {
-    expect(UNDERSCORE);
-} else if (t.token_type == LPAREN) {
-    expect(LPAREN);
-    parse_expr();
-    expect(RPAREN);
-
-    Token t_peek_1 = lexer.peek(1);
-
-    if (t_peek_1.token_type == OR) {
-        expect(OR);
-        expect(LPAREN);
-        parse_expr();
-        expect(RPAREN);
-    } else if (t_peek_1.token_type == DOT) {
-        expect(DOT);
-        expect(LPAREN);
-        parse_expr();
-        expect(RPAREN);
-    } else if (t_peek_1.token_type == STAR) {
-        expect(STAR);
-    } else {
-        string name = t_peek_1.lexeme; 
-        printf("%s name of the token \n\n",name);
-        syntaxError(t.lexeme);
-    }
-} else {
-    syntax_error();
-    
+     Token t = lexer.GetToken();
+     if (t.token_type != expected_type)
+         syntax_error_expr(nameID);
+     return t;
 }
-
-
-
-
+// parse all the input till the end of file.
+void Parser::parse_all_input()
+{ 
+    parse_input();
+    expect(END_OF_FILE);
 }
-
-void Parser::parse_token()
-{
-   // rule 
-   // token ---> ID expr
-
-    Token mostRecentToken = expect(ID);
-    //tokenMap[mostRecentToken.lexeme] = 1
-
-    // in the video he wrote parse_expr(mostRecentToken.lexem);  double check if its lexem or lexer.   
-    parse_expr(); 
-    // after the line above, we should have no syntactical errors.
-
-    // i think i should add the mostrecent token to a hashmap or something so i can keep track of the token names
-    // so i can see if i have any matchingh token names so i can print an error aka we have a symantic error.   
-
-
-
-
+// parse the token section that passed in the vector.
+void Parser::parse_input()
+{ //input -> token section INPUT_TXT
+    parse_tokens_section();
+    expect(INPUT_TEXT);
 }
-
+// this function parses the token list.
+void Parser::parse_tokens_section()
+{ //token-section -> token_list HASH
+    parse_token_list();
+    expect(HASH);
+}
+//  Parses a list of tokens, handling token lists separated by commas
 void Parser::parse_token_list()
-{
-    //rule 
-    //token-list is either 
-    // token or token COMMA token-list
+{ //token_list -> token
+  //token_list -> token COMMA token_list
     parse_token();
     Token t = lexer.peek(1);
     if (t.token_type == COMMA){
         expect(COMMA);
         parse_token_list();
-    }else if(t.token_type == HASH){
+    } else if (t.token_type == HASH){
         return;
-    }else {
+    } else{
         syntax_error();
     }
-
-    
 }
+// Parses a single token, and push it to a  vector and checking for duplicate.
+void Parser::parse_token()
+{ // token -> ID expr
+   int flag = 0;
+   string firstID = "";
+   Token recentToken = expect(ID);
+   tokens.push_back(recentToken);
+    for (int i = 0; i < tokens.size(); ++i){
+            if(tokens[i].lexeme == recentToken.lexeme){
+                flag = flag + 1;
+                if (flag == 1){
+                    firstID = to_string(tokens[i].line_no);
+                    continue;
+                }
+                duplicateToken += "Line " + to_string(recentToken.line_no) +": "
+                + tokens[i].lexeme + 
+                " already declared on line " + 
+                firstID + "\n";
+                break;
+            }
+        }
+   
 
-void Parser::parse_tokens_section()
-{
-    // rule:
-    // token-section---> token-list hash
-    parse_token_list();
-    expect(HASH);
+   parse_expr(recentToken.lexeme);
 }
+// Parses expressions associated with an identifier
+void Parser::parse_expr(string nameID)
+{ // expr -> CHAR
+  // expr -> UNDERSCORE
+  // expr -> (expr) | (expr)
+  // expr -> (expr) DOT (expr)
+  // expr -> (expr)*
 
-void Parser::parse_input()
-{
-    //the rule is :
-    // input---> token-section(input-text)
-    parse_tokens_section();
-    expect(INPUT_TEXT);
-    expect(END_OF_FILE);
-}
-
-
-// This function simply reads and prints all tokens
-// I included it as an example. You should compile the provided code
-// as it is and then run ./a.out < tests/test0.txt to see what this function does
-// This function is not needed for your solution and it is only provided to
-// illustrate the basic functionality of getToken() and the Token type.
-
-void Parser::readAndPrintAllInput()
-{
-    Token t;
-
-    // get a token
-    t = lexer.GetToken();
-
-    // while end of input is not reached
-    while (t.token_type != END_OF_FILE) 
-    {
-        t.Print();         	// pringt token
-        t = lexer.GetToken();	// and get another one
+    Token t = lexer.peek(1);
+    if (t.token_type == CHAR){
+        expect_expr(CHAR, nameID);
+    } else if(t.token_type == UNDERSCORE){
+        expect_expr(UNDERSCORE, nameID);
+    } else if(t.token_type == LPAREN){
+        expect_expr(LPAREN, nameID);
+        parse_expr(nameID);
+        expect_expr(RPAREN, nameID);
+        t = lexer.peek(1);
+        if (t.token_type == OR){
+            expect_expr(OR, nameID);
+            expect_expr(LPAREN, nameID);
+            parse_expr(nameID);
+            expect_expr(RPAREN, nameID);
+        } else if(t.token_type == DOT){
+            expect_expr(DOT, nameID);
+            expect_expr(LPAREN, nameID);
+            parse_expr(nameID);
+            expect_expr(RPAREN, nameID);
+        } else if(t.token_type == STAR){
+            expect_expr(STAR, nameID);
+        } else{
+            syntax_error_expr(nameID);
+        }
+    } else{
+        syntax_error_expr(nameID);
     }
-        
-    // note that you should use END_OF_FILE and not EOF
+
 }
 
-void Parser::syntaxError( std::string& name){
-    //printf("%s is my lexeme \n\n\n",name);
-    printf("%s HAS A SYNTAX ERROR IN ITS EXPRESSION\n",name);
-    exit(1);
-}
+
+
+
 
 int main()
 {
@@ -191,18 +168,10 @@ int main()
     // not work correctly
     Parser parser;
 
-    parser.readAndPrintAllInput();
-    parser.parse_input();
-    // after this point it means no syntax error
-    // now we need to check if ther e is as symantic error
-    // we should check if the  expression has an epesilon aka ?
-    // if no errors at all 
-    // now we do lexical analysis!
+    parser.parse_all_input();
 	
+    if(!duplicateToken.empty()){
+        cout << duplicateToken;
+    }
+
 }
-
-// HELPER FUNCTIONS ARE BELLOW :
-
-
-// this function return the proper syntax error with the token name.
-
