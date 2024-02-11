@@ -18,6 +18,8 @@ typedef struct REG {
     struct REG_node *accept; // Pointer to the accept node of the REG
 } REG;
 
+
+
 // Declaration of the parse_expr function
 // Parses a regular expression string and returns a pointer to the constructed REG
 struct REG *parse_expr(const char *expression);

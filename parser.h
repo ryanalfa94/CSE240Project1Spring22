@@ -11,6 +11,10 @@
 #include "lexer.h"
 #include "struct.h"
 #include <set>
+#include <unordered_set>
+
+
+using namespace std;
 
 class Parser {
   public:
@@ -18,6 +22,8 @@ class Parser {
     void parse_input();
     void readAndPrintAllInput();
     std::string match(REG* r,  std::string s, int p);
+    void epsilon_error(REG* toknGraph, string name);
+    
   private:
  LexicalAnalyzer lexer;
     void syntax_error();
@@ -28,9 +34,9 @@ class Parser {
     void parse_token_list();
     void parse_token();
     REG* parse_expr(std::string toknName);
-    REG* unionREG(REG* reg1, REG* reg2);
-    REG* concatREG(REG* reg1, REG* reg2);
-    REG* starREG(REG* reg1);
+    REG* uni(REG* reg1, REG* reg2);
+    REG* concat(REG* reg1, REG* reg2);
+    REG* star(REG* reg1);
     std::set<REG_node*> Match_One_Char(std::set<REG_node*> S, char c);
     
 

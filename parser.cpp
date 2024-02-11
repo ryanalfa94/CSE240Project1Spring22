@@ -15,15 +15,26 @@
 #include <cstdlib>
 #include "parser.h"
 #include <set> 
+#include <unordered_set>
+#include <unordered_map>
+
 
 
 using namespace std;
 
+REG* globalReg;
+string globalName;
 vector<Token> tokens;
 string duplicateToken; 
-set <REG*> setOfRegs; 
+set <REG*> allNodes; 
+REG* graph;
+string arryOfNames[100];
 
-//This function prints a syntax error message and terminates the program.
+
+
+// test45 is where my error is at 
+
+
 void Parser::syntax_error()
 {
     cout << "SNYTAX ERORR\n";
@@ -112,9 +123,48 @@ void Parser::parse_token()
             }
         }
    
+    string name = recentToken.lexeme; 
+   REG* R = parse_expr(recentToken.lexeme); // getting the copmpleted graph 
+   
+   globalReg  = R;
+   globalName = name;
+    //epsilon_error(R, name);
 
-   parse_expr(recentToken.lexeme);
+   graph = R; 
+   
+
+
 }
+
+// epsilon error 
+void Parser:: epsilon_error(REG* toknGraph, string name){
+
+
+    // go through all the nodes and if we can go from starting state to accept state while consuming only '_' then we have epsilon. 
+    // add them a set <REG_nodes*>
+    set <REG_node*> nodes;
+    
+    nodes.insert(toknGraph->start);  
+    nodes  = Match_One_Char(nodes, '_'); 
+
+
+    if (nodes.find(toknGraph->accept) != nodes.end())
+    {
+        cout << "EPSILON IS NOOOOOOOT A TOKEN !!! " << name << endl;
+        // Add any other actions you want to perform if an epsilon error is found
+        // For example, you might want to break out of the function or return from it
+        exit(1);
+    }
+
+    // push the name onto a vector 
+
+
+   
+}
+
+
+
+
 // Parses expressions associated with an identifier
 REG* Parser::parse_expr(string toknName)
 { // expr -> CHAR
@@ -132,7 +182,7 @@ REG* Parser::parse_expr(string toknName)
         r->start = n1;
         r->accept = n2;
         n1->first_neighbor = n2;
-        n1->first_label = t.token_type;
+        n1->first_label = t.lexeme[0];
         return r;
     } else if(t.token_type == UNDERSCORE){
         expect_expr(UNDERSCORE, toknName);
@@ -142,7 +192,7 @@ REG* Parser::parse_expr(string toknName)
         r->start = n1;
         r->accept = n2;
         n1->first_neighbor = n2;
-        n1->first_label = t.token_type;
+        n1->first_label = '_';
         return r;
     } else if(t.token_type == LPAREN){
         expect_expr(LPAREN, toknName);
@@ -154,7 +204,7 @@ REG* Parser::parse_expr(string toknName)
             expect_expr(LPAREN, toknName);
             REG* r2 = parse_expr(toknName);
             expect_expr(RPAREN, toknName);
-            REG* R = unionREG(r1, r2); 
+            REG* R = uni(r1, r2); 
             delete r1;
             delete r2;
             return R;
@@ -163,13 +213,13 @@ REG* Parser::parse_expr(string toknName)
             expect_expr(LPAREN, toknName);
             REG* r2 = parse_expr(toknName);
             expect_expr(RPAREN, toknName);
-            REG* R = concatREG(r1, r2);
+            REG* R = concat(r1, r2);
             delete r1;
             delete r2;
             return R;
         } else if(t.token_type == STAR){
             expect_expr(STAR, toknName);
-            REG* R = starREG(r1);
+            REG* R = star(r1);
             delete r1;
             return R;
         } else{
@@ -181,7 +231,7 @@ REG* Parser::parse_expr(string toknName)
 
 }
 
-REG* Parser::unionREG(REG* reg1, REG* reg2){
+REG* Parser::uni(REG* reg1, REG* reg2){
     REG_node* node1 = new REG_node;
     REG_node* node2 = new REG_node;
     REG* resultREG = new REG;
@@ -190,21 +240,23 @@ REG* Parser::unionREG(REG* reg1, REG* reg2){
 
     // Creating the starting state
     node1->first_neighbor = reg1->start;
-    node1->second_neighbor = reg2->start;
     node1->first_label = '_';
+
+    node1->second_neighbor = reg2->start;
     node1->second_label = '_';
 
     // Creating the final state
-    reg1->accept->first_neighbor = node2;
-    reg2->accept->second_neighbor = node2;
+    reg1->accept->first_neighbor = resultREG->accept;
     reg1->accept->first_label = '_';
-    reg1->accept->second_label = '_';
+
+    reg2->accept->second_neighbor = node2;
+    reg2->accept->second_label = '_';
 
     return resultREG;
 }
 
 
-REG* Parser::concatREG(REG* reg1, REG* reg2){
+REG* Parser::concat(REG* reg1, REG* reg2){
     REG* resultREG = new REG;
 
     // Linking the previous accept state of reg1
@@ -222,7 +274,7 @@ REG* Parser::concatREG(REG* reg1, REG* reg2){
 }
 
 
-REG* Parser::starREG(REG* reg1){
+REG* Parser::star(REG* reg1){
     REG_node* startNode = new REG_node;
     REG_node* acceptNode = new REG_node;
     REG* resultREG = new REG;
@@ -236,71 +288,70 @@ REG* Parser::starREG(REG* reg1){
     resultREG->start->first_neighbor = reg1->start;
     resultREG->start->first_label = '_';
 
+    resultREG->start->second_neighbor = resultREG->accept;
+    resultREG->start->second_label = '_';
+
     // Connecting the previous accept state of reg1
     // to the previous start state and the new accept state
     reg1->accept->first_neighbor = reg1->start;
     reg1->accept->first_label = '_';
+
     reg1->accept->second_neighbor = resultREG->accept;
     reg1->accept->second_label = '_';
 
     return resultREG;
 }
 
-set<REG_node*> Parser::Match_One_Char(set<REG_node*> S, char c) {
+set<REG_node*> Parser::Match_One_Char(std::set<REG_node*> S, char c) {
+    std::set<REG_node*> sPrime;
 
-    set<REG_node*> sPrime;
-    
-    for(REG_node* n: S){
-        // Check if there's an edge labeled c from n to a neighbor m
-        //find() function returns an iterator to the element if found, or sPrime.end() if not found.
-        if (n->first_neighbor->first_label == c && sPrime.find(n->first_neighbor) == sPrime.end()) {
+    for (REG_node* n : S){
+        if(n->first_neighbor != NULL && n->first_label == c){
             sPrime.insert(n->first_neighbor);
         }
-        if (n->second_neighbor->second_label == c && sPrime.find(n->second_neighbor) == sPrime.end()) {
+
+        if(n->second_neighbor != NULL && n->second_label == c){
             sPrime.insert(n->second_neighbor);
         }
     }
-    if(sPrime.empty()){
+
+    if (sPrime.empty()){
         return sPrime;
     }
 
-    bool changed  = true; 
-    set <REG_node*> sDblePrime;
+    bool changed = true;
+    std::set<REG_node*> sDblPrime;
 
-    while (changed){
-        changed =  false; 
+    while (changed) {
+        changed = false;
 
-        for(REG_node* n : sPrime){
+        for (REG_node* n : sPrime) {
+            sDblPrime.insert(n); 
 
-            sDblePrime.insert(n);
-            
-            // Check if there's an edge labeled c from n to a neighbor m
-            //find() function returns an iterator to the element if found, or sPrime.end() if not found.
-            if (n->first_neighbor->first_label == '_' && sPrime.find(n->first_neighbor) == sPrime.end()) {
-                sDblePrime.insert(n->first_neighbor);
-                changed = true;
+            if (n->first_neighbor != NULL && n->first_label == '_') {
+                sDblPrime.insert(n->first_neighbor);
+            }
+
+            if (n->second_neighbor != NULL && n->second_label == '_') {
+                sDblPrime.insert(n->second_neighbor);
+            }
         }
-            if (n->second_neighbor->second_label == '_' && sPrime.find(n->second_neighbor) == sPrime.end()) {
-                sDblePrime.insert(n->second_neighbor);
-                changed = true;
+
+        if (sPrime != sDblPrime){
+            changed = true;
+            sPrime = sDblPrime;
+            sDblPrime = std::set<REG_node*>();
         }
-        }
+
     }
 
-    if (sPrime != sDblePrime){
-        changed = true;
-        sPrime = sDblePrime; 
-        sDblePrime.clear();
-    }
-    
     return sPrime;
-
 }
 
 string Parser::match(REG* r,  string s, int p) {
     set<REG_node*> S;
     S.insert(r->start); // Start with the set of nodes reachable from the starting node of r
-
+    
     string longestMatch; // Store the longest match found so far
 
     for (int i = p; i < s.length(); ++i) {
@@ -327,6 +378,9 @@ string Parser::match(REG* r,  string s, int p) {
     return longestMatch;
 }
 
+
+
+
 int main()
 {
     
@@ -338,7 +392,7 @@ int main()
         cout << duplicateToken;
     }
 
-
+    parser.epsilon_error(globalReg,globalName);
 
 
 }
