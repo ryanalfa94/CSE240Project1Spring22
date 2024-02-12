@@ -21,8 +21,9 @@ class Parser {
     void parse_all_input();
     void parse_input();
     void readAndPrintAllInput();
-    std::string match(REG* r,  std::string s, int p);
+    int match(REG* r, string s, int p);
     void epsilon_error(REG* toknGraph, string name);
+    Token my_GetToken();
     
   private:
  LexicalAnalyzer lexer;

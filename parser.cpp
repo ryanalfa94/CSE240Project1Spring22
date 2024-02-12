@@ -17,18 +17,27 @@
 #include <set> 
 #include <unordered_set>
 #include <unordered_map>
+#include <utility>
 
 
 
 using namespace std;
 
+string inputIGuess;
 REG* globalReg;
 string globalName;
 vector<Token> tokens;
 string duplicateToken; 
 set <REG*> allNodes; 
 REG* graph;
-string arryOfNames[100];
+vector <string> vectorOfNames;
+bool globalFlag = true;
+vector <pair <REG*, Token>> regTokenPairs;
+
+string inputText;
+int p;
+int maxGlobal = 0;
+
 
 
 
@@ -81,7 +90,12 @@ void Parser::parse_all_input()
 void Parser::parse_input()
 { //input -> token section INPUT_TXT
     parse_tokens_section();
-    expect(INPUT_TEXT);
+    Token tt = expect(INPUT_TEXT);
+
+    // getting the input string and store it in inputtext.
+    inputText = tt.lexeme;
+    
+    
 }
 // this function parses the token list.
 void Parser::parse_tokens_section()
@@ -124,11 +138,15 @@ void Parser::parse_token()
         }
    
     string name = recentToken.lexeme; 
+    
    REG* R = parse_expr(recentToken.lexeme); // getting the copmpleted graph 
-   
+   //inputIGuess = recentToken.INPUT_TEXT;
+   //cout<<inputIGuess<<"  \n"<<endl;
    globalReg  = R;
    globalName = name;
-    //epsilon_error(R, name);
+
+   
+   regTokenPairs.push_back(make_pair(R,recentToken));
 
    graph = R; 
    
@@ -150,7 +168,7 @@ void Parser:: epsilon_error(REG* toknGraph, string name){
 
     if (nodes.find(toknGraph->accept) != nodes.end())
     {
-        cout << "EPSILON IS NOOOOOOOT A TOKEN !!! " << name << endl;
+        cout << "EPSILON IS NOOOOOOOT A TOKEN !!! "<< globalName << endl;
         // Add any other actions you want to perform if an epsilon error is found
         // For example, you might want to break out of the function or return from it
         exit(1);
@@ -348,38 +366,90 @@ set<REG_node*> Parser::Match_One_Char(std::set<REG_node*> S, char c) {
     return sPrime;
 }
 
-string Parser::match(REG* r,  string s, int p) {
+// Update the function definitions in the source file
+int Parser::match(REG* r, string s, int p) {
     set<REG_node*> S;
-    S.insert(r->start); // Start with the set of nodes reachable from the starting node of r
+    int matchStart = -1; // Initialize matchStart to -1
     
-    string longestMatch; // Store the longest match found so far
+    // Start with the set of nodes reachable from the starting node of r
+    S.insert(r->start);
 
+    S = Match_One_Char(S,'-');
+    // Loop through the input string from position p
     for (int i = p; i < s.length(); ++i) {
-        // Get the next character from the input string
-        char c = s[i];
-
+        char c = s[i]; // Get the next character from the input string
+        if (c =='"'){
+            break;
+        }
+        if (c == ' '){
+            continue;
+        }
         // Find the set of nodes reachable from S by consuming the character c
         S = Match_One_Char(S, c);
 
-        // If S is empty, there are no more possible matches
-        if (S.empty()) {
-            break;
-        }
-
-        // If the accepting node is in the set S, update longestMatch
+        // Check if the set of reachable nodes contains the accepting node
         for (auto node : S) {
             if (node == r->accept) {
-                longestMatch = s.substr(p, i - p + 1);
+                matchStart = i; // Update matchStart if accepting node is found
+                break;
             }
+        }
+        
+        // If matchStart is not -1, a match is found, break the loop
+        if (matchStart != -1) {
+            break;
         }
     }
 
-    // Return the longest match found
-    return longestMatch;
+    
+
+    // Return the starting position of the match
+    return matchStart;
 }
 
+Token Parser::my_GetToken() {
+    Token tokn;
+    set<REG*> graphs;
+    int  num = 0;
+    int  longestNum = 0;
+    int position = 0;
+    set <Token> finalTokenSet;
+    int sizeOfVector = tokens.size()-1;
+    int numArry [sizeOfVector];
+
+    for (auto pair : regTokenPairs) {
+        REG* regPtr = pair.first;
+        graphs.insert(regPtr);
+    }
+
+    int i =0;
+    for (auto graph :graphs){
+        num = match(graph, globalName,position);
+        cout << num << " klsdfjmnkldsf\n";
+        numArry[i] = num;
+        i++;
+    }
+
+    int max = numArry[0]; // Initialize max with the first element of the array
+    int maxIndex = 0; // Initialize maxIndex with the index of the first element
+
+ // Iterate through the array starting from the second element
+    for (int i = 1; i < sizeOfVector; ++i) {
+    // Compare the current element with the current maximum
+        if (numArry[i] > max) {
+            max = numArry[i]; // Update max if the current element is greater
+            maxIndex = i; // Update maxIndex with the index of the current element
+        }
+    }
+    cout << max << " in the function\n";
+    maxGlobal = max;
+    tokn = tokens.at(maxIndex);
 
 
+
+    
+    return tokn; 
+}
 
 int main()
 {
@@ -392,7 +462,20 @@ int main()
         cout << duplicateToken;
     }
 
-    parser.epsilon_error(globalReg,globalName);
+        parser.epsilon_error(globalReg,globalName);
+       
 
+       Token tokn = parser.my_GetToken();
+       string kos ;
 
+     for (int i = 0; i < maxGlobal && i < inputText.length(); ++i) {
+        kos+=inputText[i];
+    }
+        cout << maxGlobal <<endl;
+        cout << inputText <<endl;
+       cout << kos<< endl;
+       cout << tokn.lexeme << ",  " << kos<<endl;
+        
+
+ return 0;
 }
