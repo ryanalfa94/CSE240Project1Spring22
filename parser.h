@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C) Rida Bazzi, 2019
  *
@@ -22,8 +23,8 @@ class Parser {
     void parse_input();
     void readAndPrintAllInput();
     int match(REG* r, string s, int p);
-    void epsilon_error(REG* toknGraph, string name);
-    Token my_GetToken();
+    void epsilon_error(vector <pair <REG*, Token>> regTokenPairs);
+    void my_GetToken(std::vector <std::pair <REG*, Token>> regTokenPair);
     
   private:
  LexicalAnalyzer lexer;
@@ -45,4 +46,3 @@ class Parser {
 };
 
 #endif
-

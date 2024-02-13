@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C) Rida Bazzi, 2020
  *
@@ -18,11 +19,14 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <utility>
+#include <algorithm>
 
 
 
 using namespace std;
 
+// some of these variables are ebugging purposes only.
+set <REG*> epssilonset; 
 string inputIGuess;
 REG* globalReg;
 string globalName;
@@ -41,8 +45,6 @@ int maxGlobal = 0;
 
 
 
-// test45 is where my error is at 
-
 
 void Parser::syntax_error()
 {
@@ -50,7 +52,7 @@ void Parser::syntax_error()
     exit(1);
 }
 
-//This function prints a syntax error message related to expressions associated with a Token and terminates the program.
+//This function prints a syntax error message related to expressions.
 void Parser::syntax_error_expr(string toknName)
 {
     cout << toknName << " HAS A SYNTAX ERROR IN ITS EXPRESSION \n";
@@ -137,48 +139,56 @@ void Parser::parse_token()
             }
         }
    
-    string name = recentToken.lexeme; 
-    
+    // store n name and the graph in a gloable variable to have access to them in case i need them.
+    string name = recentToken.lexeme;  
    REG* R = parse_expr(recentToken.lexeme); // getting the copmpleted graph 
-   //inputIGuess = recentToken.INPUT_TEXT;
-   //cout<<inputIGuess<<"  \n"<<endl;
+
    globalReg  = R;
    globalName = name;
 
-   
+   // pushing the graphs and the token to a pair vector 
    regTokenPairs.push_back(make_pair(R,recentToken));
-
+    epssilonset.insert(R);
    graph = R; 
+
    
 
 
 }
 
-// epsilon error 
-void Parser:: epsilon_error(REG* toknGraph, string name){
+// check for epsilon error 
+void Parser:: epsilon_error(vector <pair <REG*, Token>> regTokenPairs){
 
 
     // go through all the nodes and if we can go from starting state to accept state while consuming only '_' then we have epsilon. 
     // add them a set <REG_nodes*>
+
+
     set <REG_node*> nodes;
-    
-    nodes.insert(toknGraph->start);  
-    nodes  = Match_One_Char(nodes, '_'); 
+    vector <Token> tokennames;
+    // this loop deals with each ggraph and token 
+    // if epsilon detected push the token to a vector so i can print them later.
+   for (pair<REG*, Token> pair : regTokenPairs) {
+    REG* reg = pair.first; // Accessing the first element of the pair
+    Token token = pair.second; // Accessing the second element of the pair
 
+    nodes.insert(reg->start);
+    nodes = Match_One_Char(nodes, '_');
+    if (nodes.find(reg->accept) != nodes.end()) {
+        tokennames.push_back(token);
+    }
+}
 
-    if (nodes.find(toknGraph->accept) != nodes.end())
-    {
-        cout << "EPSILON IS NOOOOOOOT A TOKEN !!! "<< globalName << endl;
-        // Add any other actions you want to perform if an epsilon error is found
-        // For example, you might want to break out of the function or return from it
+    if (!tokennames.empty()){
+        cout << "EPSILON IS NOOOOOOOT A TOKEN !!! ";
+        for (auto token : tokennames){
+            cout << token.lexeme << " " ;
+        }
+        cout <<endl; 
         exit(1);
     }
 
-    // push the name onto a vector 
-
-
-   
-}
+    }
 
 
 
@@ -249,6 +259,7 @@ REG* Parser::parse_expr(string toknName)
 
 }
 
+    // connecting 2 nodes as needed 
 REG* Parser::uni(REG* reg1, REG* reg2){
     REG_node* node1 = new REG_node;
     REG_node* node2 = new REG_node;
@@ -273,7 +284,7 @@ REG* Parser::uni(REG* reg1, REG* reg2){
     return resultREG;
 }
 
-
+    // connecting 2 nodes as needed 
 REG* Parser::concat(REG* reg1, REG* reg2){
     REG* resultREG = new REG;
 
@@ -320,136 +331,149 @@ REG* Parser::star(REG* reg1){
     return resultREG;
 }
 
+// This function takes a set of REG_nodes 'S' and a character 'c' as input and returns a new set
+// containing REG_nodes that can be reached by transitioning from the nodes in 'S' with the input character 'c'.
 set<REG_node*> Parser::Match_One_Char(std::set<REG_node*> S, char c) {
+    // Create an empty set to store the next set of reachable nodes
     std::set<REG_node*> sPrime;
 
-    for (REG_node* n : S){
-        if(n->first_neighbor != NULL && n->first_label == c){
+    // Iterate over each node in the input set 'S'
+    for (REG_node* n : S) {
+        // Check if the node has a transition labeled with the input character 'c' and add the target node to 'sPrime'
+        if (n->first_neighbor != NULL && n->first_label == c) {
             sPrime.insert(n->first_neighbor);
         }
 
-        if(n->second_neighbor != NULL && n->second_label == c){
+        // Check if the node has a second transition labeled with the input character 'c' and add the target node to 'sPrime'
+        if (n->second_neighbor != NULL && n->second_label == c) {
             sPrime.insert(n->second_neighbor);
         }
     }
 
-    if (sPrime.empty()){
+    // If 'sPrime' is empty (no transitions found), return an empty set
+    if (sPrime.empty()) {
         return sPrime;
     }
 
+    // Initialize a boolean variable 'changed' to track changes in the set 'sPrime'
     bool changed = true;
+    // Create a new set 'sDblPrime' to store the next set of reachable nodes after considering epsilon transitions
     std::set<REG_node*> sDblPrime;
 
+    // Iterate until no more changes occur in 'sPrime'
     while (changed) {
+        // Reset the 'changed' flag to false at the beginning of each iteration
         changed = false;
 
+        // Iterate over each node in the current set 'sPrime'
         for (REG_node* n : sPrime) {
+            // Add the current node 'n' to the set 'sDblPrime'
             sDblPrime.insert(n); 
 
+            // Check if the current node 'n' has an epsilon transition labeled with '_', and add the target node to 'sDblPrime'
             if (n->first_neighbor != NULL && n->first_label == '_') {
                 sDblPrime.insert(n->first_neighbor);
             }
 
+            // Check if the current node 'n' has a second epsilon transition labeled with '_', and add the target node to 'sDblPrime'
             if (n->second_neighbor != NULL && n->second_label == '_') {
                 sDblPrime.insert(n->second_neighbor);
             }
         }
 
-        if (sPrime != sDblPrime){
+        // If 'sPrime' is different from 'sDblPrime' (i.e., new nodes added), update 'sPrime' and set 'changed' to true
+        if (sPrime != sDblPrime) {
             changed = true;
             sPrime = sDblPrime;
-            sDblPrime = std::set<REG_node*>();
+            sDblPrime = std::set<REG_node*>(); // Clear 'sDblPrime' for the next iteration
         }
-
     }
 
+    // Return the final set of reachable nodes after considering epsilon transitions
     return sPrime;
 }
+int Parser::match(REG* R, string s, int p){
 
-// Update the function definitions in the source file
-int Parser::match(REG* r, string s, int p) {
-    set<REG_node*> S;
-    int matchStart = -1; // Initialize matchStart to -1
-    
-    // Start with the set of nodes reachable from the starting node of r
-    S.insert(r->start);
+    set<REG_node*> nodes;
 
-    S = Match_One_Char(S,'-');
-    // Loop through the input string from position p
-    for (int i = p; i < s.length(); ++i) {
-        char c = s[i]; // Get the next character from the input string
-        if (c =='"'){
+    // insert start nodes into set
+    nodes.insert(R->start);
+    nodes = Match_One_Char(nodes, '_'); // call epsilon check to see if there is epsilon error
+
+    nodes.insert(R->start); // insert start nodes again to update set
+
+    int pPrime = 0;
+
+    for(int i = p;  i < s.length(); i++){ // iterate through string
+
+          if(isspace(s[p])){
             break;
         }
-        if (c == ' '){
+
+        // handle the case where I see "
+        if(s[p] == '\"'){
+            break;
+        } 
+
+        nodes = Match_One_Char(nodes, s[i]); // call match one char to see if there is a character 
+
+        if(nodes.empty()){ // if your set is empty then you are going to break the loop
+            break;
+        }
+
+        if(nodes.find(R->accept) != nodes.end())
+            pPrime = i; // increment pPrime
+        }
+
+   return pPrime;
+}
+
+void Parser::my_GetToken(std::vector <pair <REG*, Token>> regTokenPair){
+
+    Token token;
+    int p = 0;
+    int tmp;
+    int longest = -1;
+
+    while (p < inputText.length()) {
+        if (isspace(inputText[p]) || inputText[p] == '\"') {
+            p++;
             continue;
         }
-        // Find the set of nodes reachable from S by consuming the character c
-        S = Match_One_Char(S, c);
 
-        // Check if the set of reachable nodes contains the accepting node
-        for (auto node : S) {
-            if (node == r->accept) {
-                matchStart = i; // Update matchStart if accepting node is found
-                break;
+        bool tokenFound = false;
+
+        for (int i = 0; i < regTokenPair.size(); i++) {
+            tmp = match(regTokenPair[i].first, inputText, p);
+            if (tmp > longest) {
+                longest = tmp;
+                token = regTokenPair[i].second;
+                cout << token.lexeme << ", \"";
+
+                for (int j = p; j <= longest; j++) {
+                    if (!isspace(inputText[j])) {
+                        cout << inputText[j];
+                    }
+                }
+                cout << "\"" << endl;
+                p = longest + 1; // Move to the next character after the consumed token
+                tokenFound = true;
+                break; // Exit the loop after finding the first matching token
             }
         }
         
-        // If matchStart is not -1, a match is found, break the loop
-        if (matchStart != -1) {
-            break;
+        if (!tokenFound) {
+            cout << "ERROR" << endl;
+            exit(1);
         }
     }
 
     
 
-    // Return the starting position of the match
-    return matchStart;
 }
 
-Token Parser::my_GetToken() {
-    Token tokn;
-    set<REG*> graphs;
-    int  num = 0;
-    int  longestNum = 0;
-    int position = 0;
-    set <Token> finalTokenSet;
-    int sizeOfVector = tokens.size()-1;
-    int numArry [sizeOfVector];
-
-    for (auto pair : regTokenPairs) {
-        REG* regPtr = pair.first;
-        graphs.insert(regPtr);
-    }
-
-    int i =0;
-    for (auto graph :graphs){
-        num = match(graph, globalName,position);
-        cout << num << " klsdfjmnkldsf\n";
-        numArry[i] = num;
-        i++;
-    }
-
-    int max = numArry[0]; // Initialize max with the first element of the array
-    int maxIndex = 0; // Initialize maxIndex with the index of the first element
-
- // Iterate through the array starting from the second element
-    for (int i = 1; i < sizeOfVector; ++i) {
-    // Compare the current element with the current maximum
-        if (numArry[i] > max) {
-            max = numArry[i]; // Update max if the current element is greater
-            maxIndex = i; // Update maxIndex with the index of the current element
-        }
-    }
-    cout << max << " in the function\n";
-    maxGlobal = max;
-    tokn = tokens.at(maxIndex);
 
 
-
-    
-    return tokn; 
-}
 
 int main()
 {
@@ -460,22 +484,14 @@ int main()
 	
     if(!duplicateToken.empty()){
         cout << duplicateToken;
-    }
+    }else{
 
-        parser.epsilon_error(globalReg,globalName);
-       
-
-       Token tokn = parser.my_GetToken();
-       string kos ;
-
-     for (int i = 0; i < maxGlobal && i < inputText.length(); ++i) {
-        kos+=inputText[i];
-    }
-        cout << maxGlobal <<endl;
-        cout << inputText <<endl;
-       cout << kos<< endl;
-       cout << tokn.lexeme << ",  " << kos<<endl;
+        parser.epsilon_error(regTokenPairs);
+        parser.my_GetToken(regTokenPairs);
         
+    }
+
+    
 
  return 0;
 }
