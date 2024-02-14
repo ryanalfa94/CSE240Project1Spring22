@@ -20,39 +20,31 @@
 #include <unordered_map>
 #include <utility>
 #include <algorithm>
+#include <sstream>
 
 
 
 using namespace std;
 
-// some of these variables are ebugging purposes only.
-set <REG*> epssilonset; 
-string inputIGuess;
-REG* globalReg;
-string globalName;
+// Gloable variables that will be used later.
 vector<Token> tokens;
 string duplicateToken; 
-set <REG*> allNodes; 
 REG* graph;
-vector <string> vectorOfNames;
-bool globalFlag = true;
 vector <pair <REG*, Token>> regTokenPairs;
-
 string inputText;
-int p;
-int maxGlobal = 0;
+//int p;
 
 
 
 
-
+// this function deals outside errors.
 void Parser::syntax_error()
 {
     cout << "SNYTAX ERORR\n";
     exit(1);
 }
 
-//This function prints a syntax error message related to expressions.
+//This function deals with errors in the token.
 void Parser::syntax_error_expr(string toknName)
 {
     cout << toknName << " HAS A SYNTAX ERROR IN ITS EXPRESSION \n";
@@ -74,21 +66,21 @@ Token Parser::expect(TokenType expected_type)
      return t;
 }
 
-//This function retrieves a token from the lexer and checks if it matches the expected token type.
+//This function gets a token from the lexer.
 Token Parser::expect_expr(TokenType expected_type, string toknName)
 {
      Token t = lexer.GetToken();
      if (t.token_type != expected_type)
          syntax_error_expr(toknName);
-     return t;
+        return t;
 }
 // parse all the input till the end of file.
 void Parser::parse_all_input()
 { 
     parse_input();
-    expect(END_OF_FILE);
+    expect(END_OF_FILE); 
 }
-// parse the token section that passed in the vector.
+
 void Parser::parse_input()
 { //input -> token section INPUT_TXT
     parse_tokens_section();
@@ -120,65 +112,67 @@ void Parser::parse_token_list()
         syntax_error();
     }
 }
-// Parses a single token, and push it to a  vector and checking for duplicate.
+// Parses a single token,and checking for duplicate.
 void Parser::parse_token()
 { // token -> ID expr
    int flag = 0;
    string firstID = "";
    Token recentToken = expect(ID);
+   // pushing the tokens to a vector 
    tokens.push_back(recentToken);
-    for (int i = 0; i < tokens.size(); ++i){
-            if(tokens[i].lexeme == recentToken.lexeme){
-                flag = flag + 1;
-                if (flag == 1){
-                    firstID = to_string(tokens[i].line_no);
-                    continue;
-                }
-                duplicateToken += "Line " + to_string(recentToken.line_no) +": "+ tokens[i].lexeme + " already declared on line " + firstID + "\n";
-                break;
-            }
+
+    // looping through the tokens vector
+    for (auto& token : tokens){
+    if (token.lexeme == recentToken.lexeme)
+    {
+        flag += 1;
+        if (flag == 1)
+        {
+            firstID = to_string(token.line_no);
+            continue;
         }
-   
-    // store n name and the graph in a gloable variable to have access to them in case i need them.
-    string name = recentToken.lexeme;  
+        // Construct error message using stringstream
+        stringstream errorMsg;
+        errorMsg << "Line " << recentToken.line_no << ": " << token.lexeme
+                 << " already declared on line " << firstID << "\n";
+        // Append error message to duplicateToken so it can be printed.
+        duplicateToken += errorMsg.str();
+        break;
+    }
+}
+    
    REG* R = parse_expr(recentToken.lexeme); // getting the copmpleted graph 
 
-   globalReg  = R;
-   globalName = name;
-
    // pushing the graphs and the token to a pair vector 
-   regTokenPairs.push_back(make_pair(R,recentToken));
-    epssilonset.insert(R);
-   graph = R; 
-
-   
-
-
+   regTokenPairs.push_back(make_pair(R,recentToken)); 
 }
 
 // check for epsilon error 
 void Parser:: epsilon_error(vector <pair <REG*, Token>> regTokenPairs){
 
-
     // go through all the nodes and if we can go from starting state to accept state while consuming only '_' then we have epsilon. 
     // add them a set <REG_nodes*>
-
-
     set <REG_node*> nodes;
     vector <Token> tokennames;
+
     // this loop deals with each ggraph and token 
     // if epsilon detected push the token to a vector so i can print them later.
    for (pair<REG*, Token> pair : regTokenPairs) {
     REG* reg = pair.first; // Accessing the first element of the pair
     Token token = pair.second; // Accessing the second element of the pair
 
+    // add the starting node of the graphs so match one char 
+    // determine if there is an error or no.
     nodes.insert(reg->start);
     nodes = Match_One_Char(nodes, '_');
     if (nodes.find(reg->accept) != nodes.end()) {
+        // adding all the tokens that has an error to a vector so
+        // it can be printed after all graphs are checked.
         tokennames.push_back(token);
     }
 }
-
+    // if the vector is empty that means no errrors encountered 
+    // other wise print the error msg and the tokoen names. 
     if (!tokennames.empty()){
         cout << "EPSILON IS NOOOOOOOT A TOKEN !!! ";
         for (auto token : tokennames){
@@ -201,8 +195,11 @@ REG* Parser::parse_expr(string toknName)
   // expr -> (expr) DOT (expr)
   // expr -> (expr)*
 
+
+    // following the pdf instructions to consume tokens/ setting up the graphs correctly
     Token t = lexer.peek(1);
     if (t.token_type == CHAR){
+        // dealing with Char
         expect_expr(CHAR, toknName);
         REG_node* n1 = new REG_node;
         REG_node* n2 = new REG_node;
@@ -212,7 +209,9 @@ REG* Parser::parse_expr(string toknName)
         n1->first_neighbor = n2;
         n1->first_label = t.lexeme[0];
         return r;
+
     } else if(t.token_type == UNDERSCORE){
+        // dealing with underscore
         expect_expr(UNDERSCORE, toknName);
         REG_node* n1 = new REG_node;
         REG_node* n2 = new REG_node;
@@ -222,35 +221,49 @@ REG* Parser::parse_expr(string toknName)
         n1->first_neighbor = n2;
         n1->first_label = '_';
         return r;
+
     } else if(t.token_type == LPAREN){
+        // dealing with leftpren
         expect_expr(LPAREN, toknName);
         REG* r1 = parse_expr(toknName);
         expect_expr(RPAREN, toknName);
+        // we peek at the next token so
+        // that will decide if we are going to 
+        // or , dot or a star.
         t = lexer.peek(1);
         if (t.token_type == OR){
             expect_expr(OR, toknName);
             expect_expr(LPAREN, toknName);
             REG* r2 = parse_expr(toknName);
             expect_expr(RPAREN, toknName);
-            REG* R = uni(r1, r2); 
+            REG* R = uni(r1, r2);
+            // we delete the tokens we made since c++ has no garbage selection (memory leak).
             delete r1;
             delete r2;
             return R;
+
         } else if(t.token_type == DOT){
+            // dealing with dot
             expect_expr(DOT, toknName);
             expect_expr(LPAREN, toknName);
             REG* r2 = parse_expr(toknName);
             expect_expr(RPAREN, toknName);
             REG* R = concat(r1, r2);
+            // we delete the tokens we made since c++ has no garbage selection (memory leak).
             delete r1;
             delete r2;
             return R;
+
         } else if(t.token_type == STAR){
+            // dealing with Char
             expect_expr(STAR, toknName);
             REG* R = star(r1);
+            // we delete the tokens we made since c++ has no garbage selection (memory leak).
             delete r1;
             return R;
+
         } else{
+            // anything else
             syntax_error_expr(toknName);
         }
     } else{
@@ -259,18 +272,24 @@ REG* Parser::parse_expr(string toknName)
 
 }
 
-    // connecting 2 nodes as needed 
+    // Function to perform union operation on two regular expressions
+    // creating the transitions needed for union 
+    //for some reason i can not call it union.
 REG* Parser::uni(REG* reg1, REG* reg2){
     REG_node* node1 = new REG_node;
     REG_node* node2 = new REG_node;
     REG* resultREG = new REG;
+
     resultREG->start = node1;
     resultREG->accept = node2;
 
-    // Creating the starting state
+    // Creating transitions from the new starting state to the starting states of reg1 and reg2
+    // Transition 1: to the starting state of reg1 with label '_'
     node1->first_neighbor = reg1->start;
     node1->first_label = '_';
 
+    // Creating transitions from the accept states of reg1 and reg2 to the new accept state
+    // Transition from reg1's accept state to the new accept state with label '_'
     node1->second_neighbor = reg2->start;
     node1->second_label = '_';
 
@@ -284,25 +303,24 @@ REG* Parser::uni(REG* reg1, REG* reg2){
     return resultREG;
 }
 
-    // connecting 2 nodes as needed 
+    // Function to concatenate two regular expressions
 REG* Parser::concat(REG* reg1, REG* reg2){
     REG* resultREG = new REG;
 
-    // Linking the previous accept state of reg1
-    // to the initial state of reg2
+    // Linking the accept state of reg1 to the start state of reg2
+    // Transition from the accept state of reg1 to the start state of reg2 with label '_'
     reg1->accept->first_neighbor = reg2->start;
     reg1->accept->first_label = '_';
     
-    // Preserving the initial states of reg1
-    // and the accept state of reg2
-    // for the new REG
+    // Preserving the initial states of reg1 and the accept state of reg2 for the new REG
+    // Assigning the start state of reg1 to the start state of the resulting regular expression
     resultREG->start = reg1->start;
     resultREG->accept = reg2->accept;
 
     return resultREG;
 }
 
-
+// Function to create the Kleene star operation on a regular expression
 REG* Parser::star(REG* reg1){
     REG_node* startNode = new REG_node;
     REG_node* acceptNode = new REG_node;
@@ -324,6 +342,8 @@ REG* Parser::star(REG* reg1){
     // to the previous start state and the new accept state
     reg1->accept->first_neighbor = reg1->start;
     reg1->accept->first_label = '_';
+
+    // Transition from the accept state of reg1 to the new accept state with label '_'
 
     reg1->accept->second_neighbor = resultREG->accept;
     reg1->accept->second_label = '_';
@@ -395,81 +415,79 @@ set<REG_node*> Parser::Match_One_Char(std::set<REG_node*> S, char c) {
 int Parser::match(REG* R, string s, int p){
 
     set<REG_node*> nodes;
-
     // insert start nodes into set
+    int pp = 0;
     nodes.insert(R->start);
-    nodes = Match_One_Char(nodes, '_'); // call epsilon check to see if there is epsilon error
-
-    nodes.insert(R->start); // insert start nodes again to update set
-
-    int pPrime = 0;
-
+    // call match one char to get all the nodes from start by consuming _
+    // otherwise we wont get the correct set when we match on a letter.
+    nodes = Match_One_Char(nodes, '_'); 
+    nodes.insert(R->start); // insert start nodes.
     for(int i = p;  i < s.length(); i++){ // iterate through string
+        nodes = Match_One_Char(nodes, s[i]); // call match one char to see if there is a character \
 
-          if(isspace(s[p])){
+        if(nodes.empty()){ // if your set is empty we break.
             break;
         }
-
-        // handle the case where I see "
-        if(s[p] == '\"'){
-            break;
-        } 
-
-        nodes = Match_One_Char(nodes, s[i]); // call match one char to see if there is a character 
-
-        if(nodes.empty()){ // if your set is empty then you are going to break the loop
-            break;
-        }
-
+        // if we find the accept state we
         if(nodes.find(R->accept) != nodes.end())
-            pPrime = i; // increment pPrime
+            pp = i; // increment. 
         }
 
-   return pPrime;
+   return pp;
 }
 
-void Parser::my_GetToken(std::vector <pair <REG*, Token>> regTokenPair){
+void Parser::my_GetToken(vector <pair <REG*, Token>> regTokenPair){
 
     Token token;
     int p = 0;
     int tmp;
     int longest = -1;
-
+    // Looping through the string input.
     while (p < inputText.length()) {
+        // skipping white spaces and ""
         if (isspace(inputText[p]) || inputText[p] == '\"') {
             p++;
             continue;
         }
 
         bool tokenFound = false;
-
-        for (int i = 0; i < regTokenPair.size(); i++) {
-            tmp = match(regTokenPair[i].first, inputText, p);
+        //looping through the vector.
+        for (auto& pair : regTokenPair) {
+            // finsing the longest match.
+            tmp = match(pair.first, inputText, p);
+            //check if the current match is larger than the previous match.
             if (tmp > longest) {
+                // update the longest match 
                 longest = tmp;
-                token = regTokenPair[i].second;
-                cout << token.lexeme << ", \"";
+                token = pair.second;
+                // this string is used to double check if the if the outputed string is empty.
+                string lexeme = "";
 
+                // Extract the lexeme corresponding to the longest match
                 for (int j = p; j <= longest; j++) {
+                    //skipping spaces.
                     if (!isspace(inputText[j])) {
-                        cout << inputText[j];
+                    lexeme += inputText[j];
                     }
                 }
-                cout << "\"" << endl;
-                p = longest + 1; // Move to the next character after the consumed token
-                tokenFound = true;
+
+                //if lexeme is not an empty string that means we have a match
+                // print the token name as well as that longest matched string.  
+                if (!lexeme.empty()) {
+                    cout << token.lexeme << ", \"" << lexeme << "\"" << endl;
+                 }
+        
+                p = longest + 1; // Move to the next character
+                tokenFound = true;  // a flag if we dont find a token.
                 break; // Exit the loop after finding the first matching token
             }
         }
-        
+        // if a token not found we error out.
         if (!tokenFound) {
             cout << "ERROR" << endl;
             exit(1);
         }
     }
-
-    
-
 }
 
 
